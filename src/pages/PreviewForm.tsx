@@ -45,7 +45,7 @@ export default function PreviewForm() {
       schema.forEach(f => { init[f.id] = f.defaultValue ?? "" });
       setValues(prev => ({ ...init, ...prev }));
     }
-  }, [schema.length]);
+  }, [schema]);
 
   useEffect(() => {
     const derivedFields = schema.filter(s => s.type === "derived");
