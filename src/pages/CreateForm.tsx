@@ -1,26 +1,7 @@
 import React, { useState } from "react";
-import {
-  Box,
-  Paper,
-  Button,
-  Typography,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem
-} from "@mui/material";
+import { Box, Paper, Button, Typography, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from "@mui/material";
 import { useAppDispatch, useAppSelector } from "../redux/hooks";
-import {
-  addField,
-  updateField,
-  removeField,
-  moveFieldUp,
-  moveFieldDown,
-  setFormName,
-  resetForm
-} from "../redux/formSlice";
+import { addField, updateField, removeField, moveFieldUp, moveFieldDown, setFormName, resetForm } from "../redux/formSlice";
 import { Field, FieldType } from "../types";
 import { v4 as uuidv4 } from "uuid";
 import FieldEditor from "../components/FieldEditor";
@@ -41,8 +22,10 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
 
 export default function CreateForm() {
   const dispatch = useAppDispatch();
-  const { fields, formName } = useAppSelector((s) => s.form);
-  const [addingType, setAddingType] = useState<FieldType>("text");
+  const { fields, formName } = useAppSelector(s => s.form);
+
+  // initially empty — forces user to pick a field type
+  const [addingType, setAddingType] = useState<FieldType | "">("");
   const [editingField, setEditingField] = useState<Field | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [localFormName, setLocalFormName] = useState(formName || "");
@@ -68,9 +51,11 @@ export default function CreateForm() {
   }
 
   const handleAdd = () => {
-    const f = createEmptyField(addingType);
+    if (!addingType) return;
+    const f = createEmptyField(addingType as FieldType);
     dispatch(addField(f));
     setEditingField(f);
+    setAddingType(""); // reset to placeholder
   };
 
   const handleEditSave = (f: Field) => {
@@ -90,9 +75,7 @@ export default function CreateForm() {
   const handleSaveConfirm = () => {
     const saved = {
       id: uuidv4(),
-      name:
-        localFormName ||
-        `Untitled ${dayjs().format("YYYY-MM-DD HH:mm")}`,
+      name: localFormName || `Untitled ${dayjs().format("YYYY-MM-DD HH:mm")}`,
       createdAt: new Date().toISOString(),
       schema: fields
     };
@@ -104,10 +87,9 @@ export default function CreateForm() {
 
   return (
     <Box p={2}>
-      {/* Flex layout replaces Grid */}
       <Box display="flex" gap={2} flexWrap="wrap">
         {/* Left Panel */}
-        <Box flex="1 1 300px">
+        <Box flex={1} minWidth="280px">
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6">Add Field</Typography>
             <TextField
@@ -118,7 +100,8 @@ export default function CreateForm() {
               onChange={(e) => setAddingType(e.target.value as FieldType)}
               sx={{ mt: 2 }}
             >
-              {FIELD_TYPES.map((ft) => (
+              <MenuItem value="">Select any field from dropdown</MenuItem>
+              {FIELD_TYPES.map(ft => (
                 <MenuItem key={ft.value} value={ft.value}>
                   {ft.label}
                 </MenuItem>
@@ -129,6 +112,7 @@ export default function CreateForm() {
               fullWidth
               sx={{ mt: 2 }}
               onClick={handleAdd}
+              disabled={!addingType} // disabled until user selects a type
             >
               Add
             </Button>
@@ -157,7 +141,7 @@ export default function CreateForm() {
         </Box>
 
         {/* Right Panel */}
-        <Box flex="2 1 500px">
+        <Box flex={2} minWidth="280px">
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6">Form Fields</Typography>
             {fields.length === 0 && (
@@ -183,12 +167,7 @@ export default function CreateForm() {
       </Box>
 
       {/* Edit Field Dialog */}
-      <Dialog
-        open={!!editingField}
-        onClose={() => setEditingField(null)}
-        maxWidth="md"
-        fullWidth
-      >
+      <Dialog open={!!editingField} onClose={() => setEditingField(null)} maxWidth="md" fullWidth>
         <DialogTitle>Edit Field</DialogTitle>
         <DialogContent>
           {editingField && (
@@ -203,10 +182,7 @@ export default function CreateForm() {
       </Dialog>
 
       {/* Save Form Dialog */}
-      <Dialog
-        open={saveDialogOpen}
-        onClose={() => setSaveDialogOpen(false)}
-      >
+      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
         <DialogTitle>Save Form</DialogTitle>
         <DialogContent>
           <TextField
