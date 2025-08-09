@@ -1,8 +1,20 @@
+// src/pages/PreviewForm.tsx
 import React, { useEffect, useState } from "react";
 import {
-  Box, Paper, Typography, TextField, Button,
-  Checkbox, RadioGroup, FormControlLabel, Radio,
-  Select, MenuItem, FormControl, FormLabel, FormGroup
+  Box,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  Checkbox,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  Select,
+  MenuItem,
+  FormControl,
+  FormLabel,
+  FormGroup
 } from "@mui/material";
 import { useAppSelector } from "../redux/hooks";
 import { Field } from "../types";
@@ -11,6 +23,26 @@ import { loadSavedForms } from "../utils/localStorage";
 import { evaluateFormula } from "../utils/evaluator";
 
 type ErrorMap = Record<string, string | undefined>;
+
+// Helper: replace IDs with labels for human-readable formula
+function idsToLabels(formula: string, fields: Field[]) {
+  if (!formula) return "";
+
+  // Remove empty placeholders {{}} first
+  const cleanedFormula = formula.replace(/\{\{\s*\}\}/g, "");
+
+  return cleanedFormula.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_, key) => {
+    // key can be either an id or a label, try both
+    let match = fields.find(f => f.id === key);
+    if (match) return match.label;
+
+    match = fields.find(f => f.label === key);
+    if (match) return match.label;
+
+    // fallback: just return the key itself
+    return key;
+  });
+}
 
 export default function PreviewForm() {
   const navigate = useNavigate();
@@ -21,15 +53,18 @@ export default function PreviewForm() {
   const [values, setValues] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<ErrorMap>({});
 
+  // Load schema (from redux or saved form)
   useEffect(() => {
-    if (reduxForm.fields.length > 0 && !id) {
+    if (reduxForm.fields && reduxForm.fields.length > 0 && !id) {
       setSchema(reduxForm.fields);
     } else if (id) {
       const saved = loadSavedForms().find(s => s.id === id);
       if (saved) {
         setSchema(saved.schema);
         const init: Record<string, any> = {};
-        saved.schema.forEach(f => { init[f.id] = f.defaultValue ?? "" });
+        saved.schema.forEach(f => {
+          init[f.id] = f.defaultValue ?? "";
+        });
         setValues(init);
       } else {
         navigate("/myforms");
@@ -39,15 +74,20 @@ export default function PreviewForm() {
     }
   }, [reduxForm.fields, id, navigate]);
 
+  // Initialize default values when schema changes
   useEffect(() => {
     if (schema.length > 0) {
       const init: Record<string, any> = {};
-      schema.forEach(f => { init[f.id] = f.defaultValue ?? "" });
+      schema.forEach(f => {
+        init[f.id] = f.defaultValue ?? "";
+      });
       setValues(prev => ({ ...init, ...prev }));
     }
   }, [schema]);
 
+  // Auto-update derived fields when values change
   useEffect(() => {
+    if (!schema || schema.length === 0) return;
     const derivedFields = schema.filter(s => s.type === "derived");
     if (derivedFields.length === 0) return;
 
@@ -71,16 +111,24 @@ export default function PreviewForm() {
     const rules = f.validations;
     if (!rules) return undefined;
 
-    if (rules.notEmpty && (val === "" || val === null || val === undefined)) {
-      return "Cannot be empty";
+    if (rules.notEmpty) {
+      if (val === "" || val === null || val === undefined)
+        return "Cannot be empty";
     }
     if (typeof val === "string") {
-      if (rules.minLength !== undefined && val.length < rules.minLength) return `Minimum length ${rules.minLength}`;
-      if (rules.maxLength !== undefined && val.length > rules.maxLength) return `Maximum length ${rules.maxLength}`;
-      if (rules.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return "Invalid email";
+      if (rules.minLength !== undefined && val.length < rules.minLength)
+        return `Minimum length ${rules.minLength}`;
+      if (rules.maxLength !== undefined && val.length > rules.maxLength)
+        return `Maximum length ${rules.maxLength}`;
+      if (rules.email) {
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!re.test(val)) return "Invalid email";
+      }
       if (rules.passwordRule) {
-        if (val.length < 8) return "Password must be at least 8 characters";
-        if (!/\d/.test(val)) return "Password must contain at least one number";
+        if (val.length < 8)
+          return "Password must be at least 8 characters";
+        if (!/\d/.test(val))
+          return "Password must contain at least one number";
       }
     }
     return undefined;
@@ -108,20 +156,24 @@ export default function PreviewForm() {
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!runAllValidations()) {
+    const ok = runAllValidations();
+    if (!ok) {
       alert("Fix validation errors.");
       return;
     }
-    alert("Form is valid — submitted (not saved).");
+    alert("Form is valid — submitted (not saved, per spec).");
   };
 
-  if (!schema.length) {
+  if (!schema || schema.length === 0) {
     return (
       <Box p={2}>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6">No form to preview</Typography>
           <Typography sx={{ mt: 1 }}>
-            Create a form at <Button onClick={() => navigate("/create")}>/create</Button> or go to <Button onClick={() => navigate("/myforms")}>/myforms</Button>.
+            Create a form first at{" "}
+            <Button onClick={() => navigate("/create")}>/create</Button> or
+            select one in{" "}
+            <Button onClick={() => navigate("/myforms")}>/myforms</Button>.
           </Typography>
         </Paper>
       </Box>
@@ -132,6 +184,7 @@ export default function PreviewForm() {
     <Box p={2}>
       <Paper sx={{ p: 3 }}>
         <Typography variant="h5" mb={2}>Form Preview</Typography>
+
         <form onSubmit={handleSubmit}>
           <Box display="flex" flexDirection="column" gap={2}>
             {schema.map(f => {
@@ -141,12 +194,20 @@ export default function PreviewForm() {
               if (["text", "number", "date", "textarea"].includes(f.type)) {
                 return (
                   <Box key={f.id}>
-                    <Typography variant="subtitle2">{f.label} {f.required ? "*" : ""}</Typography>
+                    <Typography variant="subtitle2">
+                      {f.label} {f.required ? "*" : ""}
+                    </Typography>
                     <TextField
                       fullWidth
                       value={value}
                       multiline={f.type === "textarea"}
-                      type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
+                      type={
+                        f.type === "number"
+                          ? "number"
+                          : f.type === "date"
+                          ? "date"
+                          : "text"
+                      }
                       onChange={(e) => handleChange(f.id, e.target.value)}
                       helperText={error}
                       error={!!error}
@@ -160,9 +221,16 @@ export default function PreviewForm() {
                   <Box key={f.id}>
                     <FormControl fullWidth>
                       <FormLabel>{f.label}</FormLabel>
-                      <Select value={value} onChange={(e) => handleChange(f.id, e.target.value)}>
+                      <Select
+                        value={value}
+                        onChange={(e) => handleChange(f.id, e.target.value)}
+                      >
                         <MenuItem value="">--select--</MenuItem>
-                        {(f.options || []).map(o => <MenuItem key={o.id} value={o.value}>{o.label}</MenuItem>)}
+                        {(f.options || []).map(o => (
+                          <MenuItem key={o.id} value={o.value}>
+                            {o.label}
+                          </MenuItem>
+                        ))}
                       </Select>
                       {error && <Typography color="error">{error}</Typography>}
                     </FormControl>
@@ -174,9 +242,17 @@ export default function PreviewForm() {
                 return (
                   <Box key={f.id}>
                     <FormLabel>{f.label}</FormLabel>
-                    <RadioGroup value={value} onChange={(e) => handleChange(f.id, e.target.value)}>
+                    <RadioGroup
+                      value={value}
+                      onChange={(e) => handleChange(f.id, e.target.value)}
+                    >
                       {(f.options || []).map(o => (
-                        <FormControlLabel key={o.id} value={o.value} control={<Radio />} label={o.label} />
+                        <FormControlLabel
+                          key={o.id}
+                          value={o.value}
+                          control={<Radio />}
+                          label={o.label}
+                        />
                       ))}
                     </RadioGroup>
                     {error && <Typography color="error">{error}</Typography>}
@@ -187,7 +263,9 @@ export default function PreviewForm() {
               if (f.type === "checkbox") {
                 const arr: string[] = Array.isArray(value) ? value : [];
                 const toggle = (val: string) => {
-                  const next = arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
+                  const next = arr.includes(val)
+                    ? arr.filter(x => x !== val)
+                    : [...arr, val];
                   handleChange(f.id, next);
                 };
                 return (
@@ -197,7 +275,12 @@ export default function PreviewForm() {
                       {(f.options || []).map(o => (
                         <FormControlLabel
                           key={o.id}
-                          control={<Checkbox checked={arr.includes(o.value)} onChange={() => toggle(o.value)} />}
+                          control={
+                            <Checkbox
+                              checked={arr.includes(o.value)}
+                              onChange={() => toggle(o.value)}
+                            />
+                          }
                           label={o.label}
                         />
                       ))}
@@ -211,7 +294,19 @@ export default function PreviewForm() {
                 return (
                   <Box key={f.id}>
                     <Typography variant="subtitle2">{f.label} (derived)</Typography>
-                    <TextField fullWidth value={values[f.id] ?? ""} InputProps={{ readOnly: true }} />
+                    <TextField
+                      fullWidth
+                      value={values[f.id] ?? ""}
+                      InputProps={{ readOnly: true }}
+                    />
+                    {f.formula && (
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                      >
+                        Formula: {idsToLabels(f.formula, schema)}
+                      </Typography>
+                    )}
                   </Box>
                 );
               }
@@ -220,7 +315,9 @@ export default function PreviewForm() {
             })}
             <Box display="flex" gap={2} mt={2}>
               <Button type="submit" variant="contained">Submit</Button>
-              <Button variant="outlined" onClick={() => navigate("/create")}>Back to Create</Button>
+              <Button variant="outlined" onClick={() => navigate("/create")}>
+                Back to Create
+              </Button>
             </Box>
           </Box>
         </form>
