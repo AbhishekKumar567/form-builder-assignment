@@ -1,21 +1,20 @@
+import { Parser } from "expr-eval";
 
 export function evaluateFormula(formula: string, valuesById: Record<string, any>): any {
   if (!formula) return "";
 
-  const replaced = formula.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_, id) => {
-    const v = valuesById[id];
-    return JSON.stringify(v === undefined || v === null ? "" : v);
-  });
-
   try {
-    const fn = new Function(`return (${replaced});`);
-    return fn();
+    
+    let replaced = formula.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_, id) => {
+      const val = valuesById[id];
+      return val === undefined || val === null ? "" : val;
+    });
+
+    // Parsing and evaluating 
+    const parser = new Parser();
+    return parser.parse(replaced).evaluate(valuesById);
   } catch (err) {
-    try {
-      const fn2 = new Function(replaced);
-      return fn2();
-    } catch (err2) {
-      return "";
-    }
+    console.error("Formula evaluation error:", err);
+    return "";
   }
 }
